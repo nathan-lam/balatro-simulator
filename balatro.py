@@ -58,6 +58,7 @@ class Balatro:
         }
 
         # Poker References
+        self.poker_hand_size = 5
         self.poker_hands = np.array(list(self.chips_mult.keys()))
         self.straight_references = np.array(
             [np.arange(1+i,i+6) for i in range(8)] + 
@@ -148,14 +149,14 @@ class Balatro:
         Scores chosen hand and target_poker_hand
 
         Args:
-            hand (np.array): Array of cards in hand. Shape: (num_simulations, 5)
+            hand (np.array): Array of cards in hand. Shape: (num_simulations, self.poker_hand_size)
             target_poker_hand (np.array): Array of poker hand str. Shape: (num_simulations,)
         returns:
             score_arr (np.array): Array of int score. Shape: (num_simulations,)
         """
         # TODO: Add processing to only use the 5 cards of the poker hand
-        # if len(hand) > 5:
-        #     raise ValueError("Received invalid number of cards. Expected at most 5 cards to score a hand.")
+        # if len(hand) > self.poker_hand_size:
+        #     raise ValueError(f"Received invalid number of cards. Expected at most {self.poker_hand_size} cards to score a hand.")
         hand_ranks = hand % self.NUM_RANKS
         hand_ranks_face_corrected = np.where(np.logical_or(hand % self.NUM_RANKS == 0, hand % self.NUM_RANKS > 10), 10 ,hand % self.NUM_RANKS) # J,Q,K are valued as 10
         hand_ranks_ace_corrected = np.where(hand_ranks_face_corrected == 1, 11, hand_ranks_face_corrected) # A are valued as 11
@@ -197,7 +198,7 @@ class Balatro:
         elif strategy == "random":
             # No evaluation, randomly pick cards to discard
             play_hand = np.repeat(False, self.num_simulations)
-            num_cards_to_keep = 5
+            num_cards_to_keep = self.poker_hand_size
             cards_to_keep_idx = np.argpartition(self.rng.random(current_hand.shape), kth=num_cards_to_keep-1, axis=1)[:, :num_cards_to_keep]
             cards_kept = current_hand[self.row_selector, cards_to_keep_idx]
             target_poker_hand = self.poker_hands[current_poker_hand_matches.argmax(axis=1)]
@@ -288,26 +289,40 @@ class Balatro:
 
         Returns:
             current_poker_hand_matches (np.array): Bool of array matching poker hands. Shape: (num_simulations, len(self.poker_hands))
-            poker_hands_arr (np.array): Int array representing poker hands. Shape: (num_simulations, 5)
+            poker_hands_arr (np.array): Int array representing poker hands. Shape: (num_simulations, self.poker_hand_size)
         """
+        current_hand = np.array([
+            [0,2,10,10,10,10,10,6], # Flush Five
+            [0,2,20,20,20,30,30,6], # Flush House
+            [0,2,40,40,40,1,1,6],
+            [0,2,0,0,13,26,39,6] # 5 of a kind
+        ])
+
         # Slicing [:, :, None] compares each element with the arange
         rank_count = self.get_rank_count(current_hand) # shape: (num_simulations, NUM_RANKS)
         suit_count = self.get_suit_count(current_hand) # shape: (num_simulations, NUM_SUITS)
         card_count = self.get_count(current_hand, 52) # Shape: (num_simulations, 52)
         self.seen_cards += card_count
 
-        is_flush_five, flush_five_poker_hand = self.has_flush_five(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_flush_house, flush_house_poker_hand = self.has_flush_house(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_five_of_a_kind, five_of_a_kind_poker_hand = self.has_5_of_a_kind(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_straight_flush, straight_flush_poker_hand = self.has_straight_flush(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_four_of_a_kind, four_of_a_kind_poker_hand = self.has_4_of_a_kind(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_full_house, full_house_poker_hand = self.has_full_house(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_flush, flush_poker_hand = self.has_flush(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_straight, straight_poker_hand = self.has_straight(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_three_of_a_kind, three_of_a_kind_poker_hand = self.has_3_of_a_kind(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_two_pair, two_pair_poker_hand = self.has_two_pair(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_pair, pair_poker_hand = self.has_2_of_a_kind(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
-        is_high_card, high_card_poker_hand = self.has_high_card(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count)
+
+        poker_hand_args = {
+            "current_hand": current_hand,
+            "rank_count": rank_count,
+            "suit_count": suit_count,
+            "card_count": card_count,
+        }
+        is_flush_five, flush_five_poker_hand = self.has_flush_five(**poker_hand_args)
+        is_flush_house, flush_house_poker_hand = self.has_flush_house(**poker_hand_args)
+        is_five_of_a_kind, five_of_a_kind_poker_hand = self.has_5_of_a_kind(**poker_hand_args)
+        is_straight_flush, straight_flush_poker_hand = self.has_straight_flush(**poker_hand_args)
+        is_four_of_a_kind, four_of_a_kind_poker_hand = self.has_4_of_a_kind(**poker_hand_args)
+        is_full_house, full_house_poker_hand = self.has_full_house(**poker_hand_args)
+        is_flush, flush_poker_hand = self.has_flush(**poker_hand_args)
+        is_straight, straight_poker_hand = self.has_straight(**poker_hand_args)
+        is_three_of_a_kind, three_of_a_kind_poker_hand = self.has_3_of_a_kind(**poker_hand_args)
+        is_two_pair, two_pair_poker_hand = self.has_two_pair(**poker_hand_args)
+        is_pair, pair_poker_hand = self.has_2_of_a_kind(**poker_hand_args)
+        is_high_card, high_card_poker_hand = self.has_high_card(**poker_hand_args)
         current_poker_hand_matches = np.vstack([
             is_flush_five,
             is_flush_house,
@@ -321,7 +336,7 @@ class Balatro:
             is_two_pair, 
             is_pair,
             is_high_card,
-            ]).T
+            ]).T # Shape: (num_simulations, len(self.poker_hands))
 
         poker_hands_arr = np.sum([
             flush_five_poker_hand, 
@@ -370,10 +385,12 @@ class Balatro:
             card_count (np.array): Array of card counts. Shape: (num_simulations, 52)
         Returns:
             is_flush_five (np.array): Bool array if each simulation is a flush five. Shape: (num_simulations,)
+            flush_five_poker_hand (np.array): Int array of cards contributing to the flush five. Shape: (num_simulations, self.poker_hand_size)
         """
         is_5_duplicates = card_count == 5
         is_flush_five = (is_5_duplicates).any(axis=1)
-        flush_five_poker_hand = self.deck[np.argmax(is_5_duplicates, axis=1)][:,None]
+        flush_five_card = self.deck[np.argmax(is_5_duplicates, axis=1)]
+        flush_five_poker_hand = np.tile(flush_five_card[:,None], (1, self.poker_hand_size))
         return is_flush_five, flush_five_poker_hand
         
     def has_flush_house(self, current_hand, rank_count, suit_count, card_count):
@@ -384,11 +401,24 @@ class Balatro:
             card_count (np.array): Array of card counts. Shape: (num_simulations, 52)
         Returns:
             is_flush_house (np.array): Bool array if each simulation is a flush house. Shape: (num_simulations,)
+            flush_house_poker_hand (np.array): Int array of cards contributing to flush house. shape: (num_simulations, self.poker_hand_size)
         """
-        is_triple_flush = (card_count >= 3).any(axis=1)
-        is_two_rank_duplicates = (card_count >= 2).sum(axis=1) >= 2 # has two ranks each with duplicates
+        is_triple = card_count == 3
+        is_double = card_count == 2
+
+        is_triple_flush = (is_triple).any(axis=1)
+        is_two_rank_duplicates = (is_triple | is_double).sum(axis=1) >= 2 # has two ranks each with duplicates
+
+        # Pick out relevant cards
+        triple_duplicates = np.argwhere(is_triple) 
+        double_duplicates = np.argwhere(is_double)
+        flush_house_poker_hand = np.zeros((self.num_simulations,self.poker_hand_size))
+        flush_house_poker_hand[triple_duplicates[:,0], :3] = triple_duplicates[:,1][:,None]
+        flush_house_poker_hand[double_duplicates[:,0], 3:] = double_duplicates[:,1][:,None]
+
         is_flush_house = is_triple_flush & is_two_rank_duplicates
-        return is_flush_house, None # TODO
+        flush_house_poker_hand = flush_house_poker_hand * is_flush_house[:,None] # zero out non relevant hands
+        return is_flush_house, flush_house_poker_hand
 
     def has_5_of_a_kind(self, current_hand, rank_count, suit_count, card_count):
         """
@@ -398,8 +428,9 @@ class Balatro:
             rank_count (np.array): Array of rank counts. Shape: (num_simulations, NUM_RANKS)
         Returns:
             is_5_of_a_kind (np.array): Bool array if each simulation is a 5-of-a-kind. Shape: (num_simulations,)
+            five_of_a_kind_poker_hand (np.array): Int array of cards contributing to 5 of a kind. Shape: (num_simulations, self.poker_hand_size)
         """
-        is_5_of_a_kind, five_of_a_kind_poker_hand = self.has_n_of_a_kind(current_hand=current_hand, rank_count=rank_count, suit_count=suit_count, card_count=card_count, n=5)
+        is_5_of_a_kind, five_of_a_kind_poker_hand = self.has_n_of_a_kind(current_hand, rank_count, suit_count, card_count, n=5)
         return is_5_of_a_kind, five_of_a_kind_poker_hand
 
     def has_straight_flush(self, current_hand, rank_count, suit_count, card_count):
@@ -412,8 +443,8 @@ class Balatro:
         Returns:
             is_straight_flush (np.array): Bool array if each simulation is a high card. Shape: (num_simulations,)
         """
-        is_flush = self.has_flush(suit_count=suit_count)
-        is_straight = self.has_straight(rank_count=rank_count, card_count=card_count)
+        is_flush, a = self.has_flush(current_hand, rank_count, suit_count, card_count)
+        is_straight, b = self.has_straight(current_hand, rank_count, suit_count, card_count)
         is_straight_flush = is_flush & is_straight
         return is_straight_flush
 
@@ -425,9 +456,10 @@ class Balatro:
             rank_count (np.array): Array of rank counts. Shape: (num_simulations, NUM_RANKS)
         Returns:
             is_4_of_a_kind (np.array): Bool array if each simulation is a 4-of-a-kind. Shape: (num_simulations,)
+            four_of_a_kind_poker_hand (np.array): Int array of cards contributing to a 4 of a kind. Shape: (num_simulations, self.poker_hand_size)
         """
-        is_4_of_a_kind = self.has_n_of_a_kind(rank_count=rank_count, n=4)
-        return is_4_of_a_kind
+        is_4_of_a_kind, four_of_a_kind_poker_hand = self.has_n_of_a_kind(current_hand, rank_count, suit_count, card_count, n=4)
+        return is_4_of_a_kind, four_of_a_kind_poker_hand
 
     def has_full_house(self, current_hand, rank_count, suit_count, card_count):
         """
@@ -452,9 +484,16 @@ class Balatro:
             suit_count (np.array): Array of suit counts. Shape: (num_simulations, NUM_SUITS)
         Returns:
             is_flush (np.array): Bool array if each simulation is a flush. Shape: (num_simulations,)
+            flush_poker_hand (np.array): Int array of cards contributing to a flush. Shape: (num_simulations, self.poker_hand_size)
         """
-        is_flush = (suit_count >= 5).any(axis=1)
-        return is_flush
+        flush_suit = suit_count >= self.poker_hand_size
+        is_flush = flush_suit.any(axis=1)
+        flush_poker_hand = np.zeros((self.num_simulations, self.poker_hand_size))
+        flush_cards = np.argwhere(flush_suit)
+        card_matches_flush= current_hand % 4 == flush_cards[:,1]
+        col_of_cards_to_keep = np.argsort(~card_matches_flush, axis=1)[:,:5] # Shape: (num_simulations, n)
+        #n_of_a_kind_poker_hand = current_hand[self.row_selector, col_of_cards_to_keep] * n_of_a_kind_mask[:,None]
+        return is_flush, flush_poker_hand
 
     def has_straight(self, current_hand, rank_count, suit_count, card_count):
         """
@@ -467,7 +506,7 @@ class Balatro:
         rank_count_per_straight_ref = rank_count[:, self.straight_references] # Shape: (num_simulations, len(straight_references), poker_hand_size)
         is_straight_per_hand = (rank_count[:, self.straight_references] >= 1).all(axis=2) # Shape: (num_simulations, len(straight_references))
         is_straight = is_straight_per_hand.any(axis=1)
-        return is_straight
+        return is_straight, None
 
     def has_3_of_a_kind(self, current_hand, rank_count, suit_count, card_count):
         """
@@ -526,7 +565,7 @@ class Balatro:
 
 def main():
 
-    B = Balatro(10, strategy="random", seed=123, verbose=True)
+    B = Balatro(4, strategy="random", seed=123, verbose=True)
     scores, poker_hands = B.simulate_one_round()
 
     df = pd.DataFrame({"Poker_hand": poker_hands, "Score": scores})
